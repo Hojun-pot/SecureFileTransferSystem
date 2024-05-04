@@ -112,13 +112,13 @@ void *client_handler(void *socket_desc) {
         userID[read_size] = '\0';
 
         // 아이디 확인
-        if (check_id(userID)) {
-            break;  // 아이디가 유효하면 반복문을 빠져나옴
-        } else {
+        if (!check_id(userID)) {
             char *message = "Invalid ID. Enter again: ";
             write(sock, message, strlen(message));
+            continue;  // 아이디가 유효하지 않으면 다음 반복을 시작
         }
-
+        break;
+        
         userID[read_size] = '\0';
         trim_whitespace(userID);
 

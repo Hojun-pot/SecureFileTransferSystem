@@ -136,12 +136,12 @@ void *client_handler(void *socket_desc) {
             close(file_fd);
 
             // 파일의 소유자 및 그룹 설정
-            struct passwd *pwd = getpwnam(userID);
-            struct group *grp = getgrnam(userID);
+            struct passwd *pwd = getpwnam(userID); // userID는 유효한 사용자 이름이어야 합니다.
+            struct group *grp = getgrnam("manufacturing"); // 또는 "distribution" 등
             if (pwd && grp) {
                 chown(fullPath, pwd->pw_uid, grp->gr_gid);
             } else {
-                fprintf(logFile, "[%s] Failed to set file owner/group for file: %s\n", dateStr, fullPath);
+                fprintf(stderr, "User or group not found.\n");
             }
 
             send(sock, "File uploaded successfully.\n", 28, 0);

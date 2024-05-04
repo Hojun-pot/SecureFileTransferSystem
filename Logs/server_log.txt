@@ -1,0 +1,15 @@
+[Sat May  4 17:10:07 2024] Client connected from 127.0.0.1:53137 
+[Sat May  4 17:10:07 2024] Client(127.0.0.1:53137) Invalid userID received: いしけげじしげじ
+[Sat May  4 17:10:10 2024] Client 127.0.0.1:53137 validated with ID: Manufacturing_User
+[Sat May  4 17:10:10 2024] User Manufacturing_User edited file: test.txt
+[Sat May  4 17:10:10 2024] File updated to C:\Users\starm\Desktop\Study\Scholar\SS\Ass2\Manufacturing\test.txt
+[Sat May  4 17:10:24 2024] Failed to receive userID from client
+[Sat May  4 17:14:33 2024] Client connected from 127.0.0.1:53212 
+[Sat May  4 17:14:33 2024] Client(127.0.0.1:53212) Invalid userID received: けいしけいしいけし
+[Sat May  4 17:14:34 2024] Client(127.0.0.1:53212) Invalid userID received: しけいしけいし
+[Sat May  4 17:14:36 2024] Client 127.0.0.1:53212 validated with ID: Manufacturing_User
+[Sat May  4 17:14:36 2024] User Manufacturing_User edited file: test.txt
+[Sat May  4 17:14:36 2024] File updated to C:\Users\starm\Desktop\Study\Scholar\SS\Ass2\Manufacturing\test.txt
+[Sat May  4 17:14:48 2024] Client(127.0.0.1:53212) Invalid userID received: 
+[Sat May  4 17:14:48 2024] Failed to receive userID from client
+[Sat May  4 17:14:48 2024] Connection closed with client 127.0.0.1:53212

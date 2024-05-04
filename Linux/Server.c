@@ -118,7 +118,7 @@ void *client_handler(void *socket_desc) {
             continue;  // 아이디가 유효하지 않으면 다음 반복을 시작
         }
         break;
-        
+
         userID[read_size] = '\0';
         trim_whitespace(userID);
 

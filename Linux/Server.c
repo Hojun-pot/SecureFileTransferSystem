@@ -94,20 +94,7 @@ void *client_handler(void *socket_desc) {
     struct tm *tm = localtime(&t); // tm 변수 초기화
     char dateStr[64];
     strftime(dateStr, sizeof(dateStr), "%c", tm);
-    // 아이디 입력 받기
-    if ((read_size = recv(sock, userID, BUFFER_SIZE, 0)) > 0) {
-        userID[read_size] = '\0';
-    }
-
-    // 아이디 확인
-    if (!check_id(userID)) {
-        char *message = "Invalid ID. Enter again: ";
-        write(sock, message, strlen(message));
-        fclose(logFile);
-        close(sock);
-        free(socket_desc);
-        return NULL;
-    }
+    
     // with user ID: %s, userID
     fprintf(logFile, "[%s] Client connected from %s:%d \n", dateStr, inet_ntoa(addr.sin_addr), ntohs(addr.sin_port));
 
@@ -120,6 +107,18 @@ void *client_handler(void *socket_desc) {
         if (read_size < 0) {
             fprintf(logFile, "[%s] Failed to receive userID from client\n", dateStr);
             break;
+        }
+        // 아이디 입력 받기
+        if ((read_size = recv(sock, userID, BUFFER_SIZE, 0)) > 0) {
+            userID[read_size] = '\0';
+        }
+
+        // 아이디 확인
+        if (check_id(userID)) {
+            break;  // 아이디가 유효하면 반복문을 빠져나옴
+        } else {
+            char *message = "Invalid ID. Enter again: ";
+            write(sock, message, strlen(message));
         }
 
         userID[read_size] = '\0';

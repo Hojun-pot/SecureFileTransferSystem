@@ -166,9 +166,8 @@ void *client_handler(void *socket_desc) {
 }
 
 int main() {
-    int server_sock, client_sock;
+    int server_sock, client_sock, c;
     struct sockaddr_in server, client;
-    socklen_t c;
 
     // 소켓 생성
     server_sock = socket(AF_INET, SOCK_STREAM, 0);
@@ -206,11 +205,13 @@ int main() {
 
         // 클라이언트 처리를 위한 스레드 생성
         if (pthread_create(&thread_id, NULL, client_handler, (void*)new_sock) < 0) {
-            perror("Could not create thread");
-            free(new_sock);
+            perror("could not create thread");
+            return 1;
         }
 
-        printf("Handler assigned\n");
+        char client_ip[INET_ADDRSTRLEN];
+        inet_ntop(AF_INET, &(client.sin_addr), client_ip, INET_ADDRSTRLEN);
+        printf("Client connected with IP: %s and port: %d\n", client_ip, ntohs(client.sin_port));
     }
 
     if (client_sock < 0) {

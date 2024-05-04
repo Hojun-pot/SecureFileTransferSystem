@@ -103,15 +103,13 @@ void *client_handler(void *socket_desc) {
         tm = localtime(&t);
         strftime(dateStr, sizeof(dateStr), "%c", tm);
 
+        // 아이디 입력 받기
         read_size = recv(sock, userID, BUFFER_SIZE, 0);
         if (read_size < 0) {
             fprintf(logFile, "[%s] Failed to receive userID from client\n", dateStr);
             break;
         }
-        // 아이디 입력 받기
-        if ((read_size = recv(sock, userID, BUFFER_SIZE, 0)) > 0) {
-            userID[read_size] = '\0';
-        }
+        userID[read_size] = '\0';
 
         // 아이디 확인
         if (check_id(userID)) {

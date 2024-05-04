@@ -194,7 +194,13 @@ int main() {
     c = sizeof(struct sockaddr_in);
 
     // 클라이언트 연결 수락
-    while ((client_sock = accept(server_sock, (struct sockaddr *)&client, &c))) {
+    while (1) {
+        client_sock = accept(server_sock, (struct sockaddr *)&client, (socklen_t*)&c);
+        if (client_sock < 0) {
+            perror("Accept failed");
+            continue;
+        }
+        
         pthread_t thread_id;
         int *new_sock = malloc(sizeof(int));
         if (new_sock == NULL) {

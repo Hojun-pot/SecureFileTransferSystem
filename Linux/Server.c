@@ -10,6 +10,8 @@
 #include <grp.h>
 #include <pthread.h>
 #include <time.h>
+#include <ctype.h>  // for isspace
+#include <arpa/inet.h>  // for inet_ntoa
 
 #define PORT 8080
 #define MAX_CONN 10

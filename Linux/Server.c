@@ -111,7 +111,7 @@ void *client_handler(void *socket_desc) {
             close(file_fd);
 
             struct passwd *pwd = getpwnam(access_control[index].user_id);
-            struct group *grp = getgrnam((index == 0) ? "manufacturing" : "distribution");
+            struct group *grp = getgrnam((index == 0) ? "Manufacturing" : "Distribution");
             if (pwd && grp) {
                 chown(fullPath, pwd->pw_uid, grp->gr_gid);
             } else {

@@ -65,6 +65,17 @@ void *client_handler(void *socket_desc) {
     }
 
     while (1) {
+    read_size = recv(sock, userID, BUFFER_SIZE, 0);
+    if (read_size <= 0) {
+        fprintf(logFile, "Connection lost or client disconnected\n");
+        break;
+    }
+    userID[read_size] = '\0';
+    trim_whitespace(userID);
+
+    index = validate_user_id(userID);
+    while (index == -1) {
+        send(sock, "Invalid user ID. Enter again: ", 30, 0);
         read_size = recv(sock, userID, BUFFER_SIZE, 0);
         if (read_size <= 0) {
             fprintf(logFile, "Connection lost or client disconnected\n");
@@ -72,19 +83,8 @@ void *client_handler(void *socket_desc) {
         }
         userID[read_size] = '\0';
         trim_whitespace(userID);
-
         index = validate_user_id(userID);
-        while (index == -1) {
-            send(sock, "Invalid user ID. Enter again: ", 30, 0);
-            read_size = recv(sock, userID, BUFFER_SIZE, 0);
-            if (read_size <= 0) {
-                fprintf(logFile, "Connection lost or client disconnected\n");
-                break;
-            }
-            userID[read_size] = '\0';
-            trim_whitespace(userID);
-            index = validate_user_id(userID);
-        }
+    }
 
         fprintf(logFile, "Valid user ID received: %s\n", userID);
         send(sock, "Valid user ID.", 14, 0);
@@ -124,6 +124,8 @@ void *client_handler(void *socket_desc) {
             send(sock, "Error saving file.\n", 19, 0);
             fprintf(logFile, "Failed to save file at %s\n", fullPath);
         }
+
+        break; // Exit after handling one client for simplicity
     }
 
     fclose(logFile);
@@ -179,7 +181,6 @@ int main() {
             perror("could not create thread");
             return 1;
         }
-        pthread_detach(thread_id); // Detach the thread to avoid memory leaks
     }
 
     close(server_sock);

@@ -136,6 +136,7 @@ void *client_handler(void *socket_desc) {
 
 int main() {
     int server_sock, client_sock, c;
+    int opt = 1;
     struct sockaddr_in server, client;
 
     server_sock = socket(AF_INET, SOCK_STREAM, 0);

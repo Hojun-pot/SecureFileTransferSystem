@@ -46,8 +46,8 @@ int validate_user_group(const char *userID) {
     gid_t user_gid = pwd->pw_gid;
 
     for (int i = 0; i < sizeof(access_control) / sizeof(UserAccess); i++) {
-        struct group *grp = getgrnam(access_control[i].user_id);
-        if (grp != NULL && grp->gr_gid == user_gid) {
+        struct group *grp = getgrgid(user_gid);
+        if (grp != NULL && strcmp(grp->gr_name, access_control[i].user_id) == 0) {
             return i;
         }
     }

@@ -63,10 +63,10 @@ int main() {
             printf("Server reply: %s\n", server_reply);
 
             if (strstr(server_reply, "Invalid user ID. Enter again: ") != NULL) {
-            printf("Invalid ID. Please try again.\n");
-                continue; // 유효하지 않은 ID 입력 시 다시 입력하도록 함
+                printf("Invalid ID. Please try again.\n");
+                continue;
             } else {
-                break; // 유효한 ID인 경우, 반복문을 빠져나감
+                break;
             }
         } else {
             printf("Failed to receive server response or connection lost.\n");
@@ -75,7 +75,6 @@ int main() {
         }
     }
 
-    // 유효한 ID 확인 후 다음 단계 진행
     printf("Enter file path:\n> ");
     fgets(message, sizeof(message), stdin);
     trim(message);

@@ -66,7 +66,6 @@ int validate_user_group(const char *userID) {
     return -1;
 }
 
-
 void *client_handler(void *socket_desc) {
     int sock = *(int*)socket_desc;
     char userID[BUFFER_SIZE], filePath[BUFFER_SIZE], content[BUFFER_SIZE * 4];
@@ -85,17 +84,6 @@ void *client_handler(void *socket_desc) {
     }
 
     while (1) {
-    read_size = recv(sock, userID, BUFFER_SIZE, 0);
-    if (read_size <= 0) {
-        fprintf(logFile, "Connection lost or client disconnected\n");
-        break;
-    }
-    userID[read_size] = '\0';
-    trim_whitespace(userID);
-
-    index = validate_user_group(userID);
-    while (index == -1) {
-        send(sock, "Invalid user ID. Enter again: ", 30, 0);
         read_size = recv(sock, userID, BUFFER_SIZE, 0);
         if (read_size <= 0) {
             fprintf(logFile, "Connection lost or client disconnected\n");
@@ -103,8 +91,19 @@ void *client_handler(void *socket_desc) {
         }
         userID[read_size] = '\0';
         trim_whitespace(userID);
+
         index = validate_user_group(userID);
-    }
+        while (index == -1) {
+            send(sock, "Invalid user ID. Enter again: ", 30, 0);
+            read_size = recv(sock, userID, BUFFER_SIZE, 0);
+            if (read_size <= 0) {
+                fprintf(logFile, "Connection lost or client disconnected\n");
+                break;
+            }
+            userID[read_size] = '\0';
+            trim_whitespace(userID);
+            index = validate_user_group(userID);
+        }
 
         fprintf(logFile, "Valid user ID received: %s\n", userID);
         send(sock, "Valid user ID.", 14, 0);
@@ -126,45 +125,31 @@ void *client_handler(void *socket_desc) {
         char fullPath[256];
         sprintf(fullPath, "%s/%s", access_control[index].directory, filePath);
 
-        // 파일 경로 확인
-        if (access(fullPath, F_OK) != 0) {
-            perror("File path does not exist or is incorrect");
+        struct stat st = {0};
+        if (stat(fullPath, &st) == -1) {
+            mkdir(access_control[index].directory, 0700);
         }
 
-        // 쓰기 권한 확인
-        if (access(fullPath, W_OK) != 0) {
-            perror("No write permission to the file");
-        }
-
-        // 디스크 공간 확인
-        struct statvfs stat;
-        if (statvfs(fullPath, &stat) != 0) {
-            perror("Failed to get file system information");
-        } else if (stat.f_bavail * stat.f_bsize < strlen(content)) {
-            fprintf(stderr, "Not enough disk space\n");
-        }
-        
         int file_fd = open(fullPath, O_WRONLY | O_CREAT, 0666);
-        if (file_fd > 0) {
-            write(file_fd, content, strlen(content));
-            close(file_fd);
-
-            struct passwd *pwd = getpwnam(access_control[index].user_id);
-            struct group *grp = getgrnam((index == 0) ? "Manufacturing" : "Distribution");
-            if (pwd && grp) {
-                chown(fullPath, pwd->pw_uid, grp->gr_gid);
-            } else {
-                fprintf(logFile, "User or group not found.\n");
-            }
-
-            send(sock, "File uploaded successfully.\n", 28, 0);
-            fprintf(logFile, "File updated to %s\n", fullPath);
-        } else {
-            perror("Error saving file");
-            fprintf(logFile, "Failed to save file at %s\n", fullPath);
+        if (file_fd < 0) {
+            perror("Failed to open file");
+            fprintf(logFile, "Failed to open file: %s\n", fullPath);
+            close(sock);
+            return NULL;
         }
 
-        break; // Exit after handling one client for simplicity
+        write(file_fd, content, strlen(content));
+        close(file_fd);
+
+        struct passwd *pwd = getpwnam(userID);
+        struct group *grp = getgrnam((index == 0) ? "Manufacturing" : "Distribution");
+        if (pwd && grp) {
+            chown(fullPath, pwd->pw_uid, grp->gr_gid);
+        }
+
+        send(sock, "File uploaded successfully.\n", 28, 0);
+        fprintf(logFile, "File updated to %s\n", fullPath);
+        break;
     }
 
     fclose(logFile);
@@ -175,7 +160,6 @@ void *client_handler(void *socket_desc) {
 
 int main() {
     int server_sock, client_sock, c;
-    int opt = 1;
     struct sockaddr_in server, client;
 
     server_sock = socket(AF_INET, SOCK_STREAM, 0);
@@ -183,17 +167,19 @@ int main() {
         perror("Could not create socket");
         return 1;
     }
-    // SO_REUSEADDR 옵션 설정
+
+    int opt = 1;
     if (setsockopt(server_sock, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt)) == -1) {
         perror("setsockopt");
         return 1;
     }
+
     server.sin_family = AF_INET;
     server.sin_addr.s_addr = INADDR_ANY;
     server.sin_port = htons(PORT);
 
     if (bind(server_sock, (struct sockaddr *)&server, sizeof(server)) < 0) {
-        perror("Bind failed. Error");
+        perror("Bind failed");
         return 1;
     }
 
@@ -209,10 +195,8 @@ int main() {
             continue;
         }
 
-        char client_ip[INET_ADDRSTRLEN];
-        inet_ntop(AF_INET, &client.sin_addr, client_ip, INET_ADDRSTRLEN);
-        printf("Client connected with IP: %s and port: %d\n", client_ip, ntohs(client.sin_port));
-        
+        printf("Client connected with IP: %s and port: %d\n", inet_ntoa(client.sin_addr), ntohs(client.sin_port));
+
         pthread_t thread_id;
         int *new_sock = malloc(sizeof(int));
         if (!new_sock) {
@@ -222,8 +206,9 @@ int main() {
         *new_sock = client_sock;
 
         if (pthread_create(&thread_id, NULL, client_handler, (void*)new_sock) < 0) {
-            perror("could not create thread");
-            return 1;
+            perror("Could not create thread");
+            free(new_sock);
+            continue;
         }
     }
 

@@ -124,8 +124,6 @@ void *client_handler(void *socket_desc) {
             send(sock, "Error saving file.\n", 19, 0);
             fprintf(logFile, "Failed to save file at %s\n", fullPath);
         }
-
-        break; // Exit after handling one client for simplicity
     }
 
     fclose(logFile);
@@ -181,6 +179,7 @@ int main() {
             perror("could not create thread");
             return 1;
         }
+        pthread_detach(thread_id); // Detach the thread to avoid memory leaks
     }
 
     close(server_sock);

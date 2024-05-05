@@ -158,6 +158,10 @@ int main() {
             continue;
         }
 
+        char client_ip[INET_ADDRSTRLEN];
+        inet_ntop(AF_INET, &client.sin_addr, client_ip, INET_ADDRSTRLEN);
+        printf("Client connected with IP: %s and port: %d\n", client_ip, ntohs(client.sin_port));
+        
         pthread_t thread_id;
         int *new_sock = malloc(sizeof(int));
         if (!new_sock) {

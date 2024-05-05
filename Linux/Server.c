@@ -73,7 +73,7 @@ void *client_handler(void *socket_desc) {
     int sock = *(int*)socket_desc;
     struct sockaddr_in addr;
     int addr_size = sizeof(addr);
-    char buffer[BUFFER_SIZE], userID[BUFFER_SIZE], filePath[BUFFER_SIZE], content[BUFFER_SIZE * 4];
+    char userID[BUFFER_SIZE], filePath[BUFFER_SIZE], content[BUFFER_SIZE * 4];
     int read_size, index;
     int file_fd;
 
@@ -89,71 +89,64 @@ void *client_handler(void *socket_desc) {
         return NULL;
     }
 
-    time_t t;
-    struct tm *tm;
-    char dateStr[64];
-
     while (1) {
-        t = time(NULL);
-        tm = localtime(&t);
-        strftime(dateStr, sizeof(dateStr), "%c", tm);
-
         read_size = recv(sock, userID, BUFFER_SIZE, 0);
         if (read_size <= 0) {
-            fprintf(logFile, "[%s] Connection lost or client disconnected\n", dateStr);
+            fprintf(logFile, "Connection lost or client disconnected\n");
             break;
         }
 
         userID[read_size] = '\0';
         trim_whitespace(userID);
 
-        if (!validate_user_id(userID)) {
+        index = validate_user_id(userID); // Check if user ID is valid
+        if (index == -1) { // If ID is invalid
             send(sock, "Invalid user ID. Enter again: ", 30, 0);
-            continue;
+            continue; // Ask for ID again
         }
 
-        fprintf(logFile, "[%s] Valid user ID received: %s\n", dateStr, userID);
+        fprintf(logFile, "Valid user ID received: %s\n", userID);
         send(sock, "Valid user ID.", 14, 0);
 
         read_size = recv(sock, filePath, BUFFER_SIZE, 0);
         if (read_size <= 0) {
-            fprintf(logFile, "[%s] Failed to receive filePath from client\n", dateStr);
+            fprintf(logFile, "Failed to receive filePath from client\n");
             break;
         }
         filePath[read_size] = '\0';
 
         read_size = recv(sock, content, BUFFER_SIZE * 4, 0);
         if (read_size <= 0) {
-            fprintf(logFile, "[%s] Failed to receive content from client\n", dateStr);
+            fprintf(logFile, "Failed to receive content from client\n");
             break;
         }
         content[read_size] = '\0';
 
-        fprintf(logFile, "[%s] User %s edited file: %s\n", dateStr, userID, filePath);
+        fprintf(logFile, "User %s edited file: %s\n", userID, filePath);
 
         char fullPath[256];
-        sprintf(fullPath, "%s/%s", access_control[validate_user_id(userID)].directory, filePath);
+        sprintf(fullPath, "%s/%s", access_control[index].directory, filePath);
         file_fd = open(fullPath, O_WRONLY | O_CREAT, 0666);
         if (file_fd > 0) {
             write(file_fd, content, strlen(content));
             close(file_fd);
 
-            struct passwd *pwd = getpwnam(userID); // Get user info
-            struct group *grp = getgrnam("manufacturing"); // Or "distribution"
+            struct passwd *pwd = getpwnam(userID);
+            struct group *grp = getgrnam((index == 0) ? "manufacturing" : "distribution");
             if (pwd && grp) {
-                chown(fullPath, pwd->pw_uid, grp->gr_gid); // Set owner
+                chown(fullPath, pwd->pw_uid, grp->gr_gid);
             } else {
                 fprintf(stderr, "User or group not found.\n");
             }
 
             send(sock, "File uploaded successfully.\n", 28, 0);
-            fprintf(logFile, "[%s] File updated to %s\n", dateStr, fullPath);
+            fprintf(logFile, "File updated to %s\n", fullPath);
         } else {
             send(sock, "Error saving file.\n", 19, 0);
-            fprintf(logFile, "[%s] Failed to save file at %s\n", dateStr, fullPath);
+            fprintf(logFile, "Failed to save file at %s\n", fullPath);
         }
 
-        break;  // Exit after one transaction for simplicity
+        break; // Exit after handling one client for simplicity
     }
 
     fclose(logFile);
@@ -161,6 +154,7 @@ void *client_handler(void *socket_desc) {
     free(socket_desc);
     return NULL;
 }
+
 
 
 int main() {

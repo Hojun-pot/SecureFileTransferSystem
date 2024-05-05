@@ -53,7 +53,7 @@ int validate_user_group(const char *userID) {
     }
 
     for (int i = 0; i < sizeof(access_control) / sizeof(UserAccess); i++) {
-        struct group *grp = getgrnam(access_control[i].user_id);
+        struct group *grp = getgrgid(groups[i]);
         if (grp != NULL) {
             for (int j = 0; j < ngroups; j++) {
                 if (groups[j] == grp->gr_gid) {
@@ -64,6 +64,7 @@ int validate_user_group(const char *userID) {
     }
     return -1;
 }
+
 
 void *client_handler(void *socket_desc) {
     int sock = *(int*)socket_desc;

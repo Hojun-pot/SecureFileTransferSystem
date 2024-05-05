@@ -12,6 +12,7 @@
 #include <time.h>
 #include <ctype.h>
 #include <arpa/inet.h>
+#include <sys/statvfs.h>
 
 #define PORT 8080
 #define MAX_CONN 10

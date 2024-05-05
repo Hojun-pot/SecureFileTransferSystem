@@ -75,7 +75,7 @@ int main() {
         }
     }
 
-    // Only proceed to these prompts if a valid ID was confirmed
+    // 유효한 ID 확인 후 다음 단계 진행
     printf("Enter file path:\n> ");
     fgets(message, sizeof(message), stdin);
     trim(message);

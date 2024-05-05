@@ -127,10 +127,8 @@ void *client_handler(void *socket_desc) {
 
         struct stat st;
         if (stat(fullPath, &st) == 0) {
-            // 파일이 이미 존재하는 경우
             send(sock, "File already exists.\n", 21, 0);
         } else {
-            // 파일이 존재하지 않는 경우 새로 생성
             int file_fd = open(fullPath, O_WRONLY | O_CREAT, 0666);
             if (file_fd < 0) {
                 perror("Failed to open file");
@@ -142,12 +140,14 @@ void *client_handler(void *socket_desc) {
             }
         }
 
+        printf("Attempting to open file at: %s\n", fullPath);
         int file_fd = open(fullPath, O_WRONLY | O_CREAT, 0666);
         if (file_fd < 0) {
             perror("Failed to open file");
             fprintf(logFile, "Failed to open file: %s\n", fullPath);
-            close(sock);
-            return NULL;
+        } else {
+            printf("File opened successfully.\n");
+            close(file_fd);
         }
 
         write(file_fd, content, strlen(content));

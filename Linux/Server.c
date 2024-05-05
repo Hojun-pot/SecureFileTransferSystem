@@ -143,7 +143,11 @@ int main() {
         perror("Could not create socket");
         return 1;
     }
-
+    // SO_REUSEADDR 옵션 설정
+    if (setsockopt(server_sock, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt)) == -1) {
+        perror("setsockopt");
+        return 1;
+    }
     server.sin_family = AF_INET;
     server.sin_addr.s_addr = INADDR_ANY;
     server.sin_port = htons(PORT);

@@ -51,16 +51,20 @@ int main() {
     printf("Connected to server.\n");
 
     while (1) {
-        printf("Enter ID:\n> ");
+        printf("Enter user ID:\n> ");
         fgets(message, sizeof(message), stdin);
         trim(message);
+
         send(sock, message, strlen(message), 0);
 
         result = recv(sock, server_reply, BUFFER_SIZE, 0);
         if (result > 0) {
             server_reply[result] = '\0';
-            if (strcmp(server_reply, "Invalid ID") == 0) {
+            printf("Server reply: %s\n", server_reply);
+
+            if (strstr(server_reply, "Invalid ID") != NULL) {
                 printf("Invalid ID. Please try again.\n");
+                continue; // 유효하지 않은 ID 입력 시 다시 입력하도록 함
             } else {
                 break; // 유효한 ID인 경우, 반복문을 빠져나감
             }
@@ -71,6 +75,7 @@ int main() {
         }
     }
 
+    // Only proceed to these prompts if a valid ID was confirmed
     printf("Enter file path:\n> ");
     fgets(message, sizeof(message), stdin);
     trim(message);

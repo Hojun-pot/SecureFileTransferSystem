@@ -5,7 +5,7 @@
 #include <sys/socket.h>
 #include <netinet/in.h>
 #include <arpa/inet.h>
-#include <ctype.h>
+#include <ctype.h>  // for isspace
 
 #define SERVER_IP "127.0.0.1"
 #define PORT 8080
@@ -56,53 +56,50 @@ int main() {
 
     printf("Connected to server.\n");
 
-    // 유저 ID 입력과 서버 응답 처리
-    do {
-    printf("Enter user ID:\n> ");
-    fgets(message, sizeof(message), stdin);
-    trim(message); // Trim whitespace
-
-    send(sock, message, strlen(message), 0);
-
-    result = recv(sock, server_reply, BUFFER_SIZE, 0);
-    if (result > 0) {
-        server_reply[result] = '\0';
-        printf("Server reply: %s\n", server_reply);
-    } else {
-        printf("Failed to receive server response or connection lost.\n");
-        close(sock);
-        return -1;
-    }
-    } while (strstr(server_reply, "Invalid ID") != NULL);
-    send(sock, message, strlen(message), 0);
-
-    result = recv(sock, server_reply, BUFFER_SIZE, 0);
-    if (result > 0) {
-        server_reply[result] = '\0';
-        printf("Server reply: %s\n", server_reply);
-
-        // 파일 경로 입력
-        printf("Enter file path:\n> ");
+    while (1) {
+        // 유저 ID 입력
+        printf("Enter user ID:\n> ");
         fgets(message, sizeof(message), stdin);
-        trim(message);
+        trim(message); // Trim whitespace
+
         send(sock, message, strlen(message), 0);
 
-        // 파일 내용 입력
-        printf("Enter content:\n> ");
-        fgets(message, sizeof(message), stdin);
-        trim(message);
-        send(sock, message, strlen(message), 0);
-
-        // 서버 응답 받기
         result = recv(sock, server_reply, BUFFER_SIZE, 0);
         if (result > 0) {
             server_reply[result] = '\0';
             printf("Server reply: %s\n", server_reply);
+
+            if (strstr(server_reply, "Invalid ID") != NULL) {
+                continue;  // Invalid ID received, re-enter user ID
+            } else {
+                break;  // Valid ID, proceed
+            }
         } else {
-            printf("Failed to receive server response.\n");
+            printf("Failed to receive server response or connection lost.\n");
+            close(sock);
+            return -1;
         }
+    }
+
+    // 파일 경로 입력
+    printf("Enter file path:\n> ");
+    fgets(message, sizeof(message), stdin);
+    trim(message);
+    send(sock, message, strlen(message), 0);
+
+    // 파일 내용 입력
+    printf("Enter content:\n> ");
+    fgets(message, sizeof(message), stdin);
+    trim(message);
+    send(sock, message, strlen(message), 0);
+
+    // 서버 응답 받기
+    result = recv(sock, server_reply, BUFFER_SIZE, 0);
+    if (result > 0) {
+        server_reply[result] = '\0';
+        printf("Server reply: %s\n", server_reply);
     } else {
-        printf("Failed to receive server response or connection lost.\n");
+        printf("Failed to receive server response.\n");
     }
 
     close(sock);

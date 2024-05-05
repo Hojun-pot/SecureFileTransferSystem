@@ -13,6 +13,7 @@
 #include <ctype.h>
 #include <arpa/inet.h>
 #include <sys/statvfs.h>
+#include <sys/stat.h>   // 파일 상태 정보를 위한 헤더
 
 #define PORT 8080
 #define MAX_CONN 10
@@ -64,6 +65,23 @@ int validate_user_group(const char *userID) {
         }
     }
     return -1;
+}
+
+int create_and_write_file(const char* file_path, const char* content) {
+    int file_fd = open(file_path, O_WRONLY | O_CREAT | O_TRUNC, 0666);
+    if (file_fd < 0) {
+        perror("Failed to open or create file");
+        return -1;
+    }
+
+    if (write(file_fd, content, strlen(content)) < 0) {
+        perror("Failed to write to file");
+        close(file_fd);
+        return -1;
+    }
+
+    close(file_fd);  // 파일 디스크립터를 닫음
+    return 0;  // 성공 시 0 반환
 }
 
 void *client_handler(void *socket_desc) {
@@ -125,42 +143,12 @@ void *client_handler(void *socket_desc) {
         char fullPath[256];
         sprintf(fullPath, "%s/%s", access_control[index].directory, filePath);
 
-        struct stat st;
-        if (stat(fullPath, &st) == 0) {
-            send(sock, "File already exists.\n", 21, 0);
+        if (create_and_write_file(fullPath, content) == 0) {
+            send(sock, "File created and content written successfully.\n", 47, 0);
         } else {
-            int file_fd = open(fullPath, O_WRONLY | O_CREAT, 0666);
-            if (file_fd < 0) {
-                perror("Failed to open file");
-                send(sock, "Failed to open file.\n", 21, 0);
-            } else {
-                write(file_fd, content, strlen(content));
-                close(file_fd);
-                send(sock, "File created and content written successfully.\n", 47, 0);
-            }
+            send(sock, "Failed to open file.\n", 21, 0);
         }
 
-        printf("Attempting to open file at: %s\n", fullPath);
-        int file_fd = open(fullPath, O_WRONLY | O_CREAT, 0666);
-        if (file_fd < 0) {
-            perror("Failed to open file");
-            fprintf(logFile, "Failed to open file: %s\n", fullPath);
-        } else {
-            printf("File opened successfully.\n");
-            close(file_fd);
-        }
-
-        write(file_fd, content, strlen(content));
-        close(file_fd);
-
-        struct passwd *pwd = getpwnam(userID);
-        struct group *grp = getgrnam((index == 0) ? "Manufacturing" : "Distribution");
-        if (pwd && grp) {
-            chown(fullPath, pwd->pw_uid, grp->gr_gid);
-        }
-
-        send(sock, "File uploaded successfully.\n", 28, 0);
-        fprintf(logFile, "File updated to %s\n", fullPath);
         break;
     }
 

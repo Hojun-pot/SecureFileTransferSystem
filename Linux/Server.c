@@ -10,14 +10,14 @@
 #include <grp.h>
 #include <pthread.h>
 #include <time.h>
-#include <ctype.h>  // for isspace
-#include <arpa/inet.h>  // for inet_ntoa
+#include <ctype.h>
+#include <arpa/inet.h>
 
 #define PORT 8080
 #define MAX_CONN 10
 #define BUFFER_SIZE 1024
 
-pthread_mutex_t lock;
+pthread_mutex_t lock = PTHREAD_MUTEX_INITIALIZER;
 
 typedef struct {
     char user_id[50];
@@ -31,18 +31,10 @@ UserAccess access_control[] = {
 
 void trim_whitespace(char *str) {
     char *end;
-
-    // Trim leading space
-    while(isspace((unsigned char)*str)) str++;
-
-    if(*str == 0)  // All spaces?
-        return;
-
-    // Trim trailing space
+    while (isspace((unsigned char)*str)) str++;
+    if (*str == 0) return;
     end = str + strlen(str) - 1;
-    while(end > str && isspace((unsigned char)*end)) end--;
-
-    // Write new null terminator character
+    while (end > str && isspace((unsigned char)*end)) end--;
     end[1] = '\0';
 }
 
@@ -55,33 +47,16 @@ int validate_user_id(const char *userID) {
     return -1;
 }
 
-typedef struct {
-    int socket_desc;
-    struct sockaddr_in client;
-} client_data;
-
-int check_id(char* id) {
-    for (int i = 0; i < sizeof(access_control) / sizeof(UserAccess); i++) {
-        if (strcmp(id, access_control[i].user_id) == 0) {
-            return 1;  
-        }
-    }
-    return 0;  
-}
-
 void *client_handler(void *socket_desc) {
     int sock = *(int*)socket_desc;
-    struct sockaddr_in addr;
-    int addr_size = sizeof(addr);
     char userID[BUFFER_SIZE], filePath[BUFFER_SIZE], content[BUFFER_SIZE * 4];
     int read_size, index;
-    int file_fd;
 
-    getpeername(sock, (struct sockaddr *)&addr, &addr_size);
+    pthread_mutex_lock(&lock);
+    char logPath[512] = "/home/server_logs/server_log.txt";
+    FILE *logFile = fopen(logPath, "a");
+    pthread_mutex_unlock(&lock);
 
-    char logPath[512];
-    sprintf(logPath, "/home/server_logs/server_log.txt");
-    FILE* logFile = fopen(logPath, "a");
     if (!logFile) {
         perror("Failed to open log file");
         close(sock);
@@ -95,14 +70,13 @@ void *client_handler(void *socket_desc) {
             fprintf(logFile, "Connection lost or client disconnected\n");
             break;
         }
-
         userID[read_size] = '\0';
         trim_whitespace(userID);
 
-        index = validate_user_id(userID); // Check if user ID is valid
-        if (index == -1) { // If ID is invalid
+        index = validate_user_id(userID);
+        if (index == -1) {
             send(sock, "Invalid user ID. Enter again: ", 30, 0);
-            continue; // Ask for ID again
+            continue;
         }
 
         fprintf(logFile, "Valid user ID received: %s\n", userID);
@@ -122,21 +96,19 @@ void *client_handler(void *socket_desc) {
         }
         content[read_size] = '\0';
 
-        fprintf(logFile, "User %s edited file: %s\n", userID, filePath);
-
         char fullPath[256];
         sprintf(fullPath, "%s/%s", access_control[index].directory, filePath);
-        file_fd = open(fullPath, O_WRONLY | O_CREAT, 0666);
+        int file_fd = open(fullPath, O_WRONLY | O_CREAT, 0666);
         if (file_fd > 0) {
             write(file_fd, content, strlen(content));
             close(file_fd);
 
-            struct passwd *pwd = getpwnam(userID);
+            struct passwd *pwd = getpwnam(access_control[index].user_id);
             struct group *grp = getgrnam((index == 0) ? "manufacturing" : "distribution");
             if (pwd && grp) {
                 chown(fullPath, pwd->pw_uid, grp->gr_gid);
             } else {
-                fprintf(stderr, "User or group not found.\n");
+                fprintf(logFile, "User or group not found.\n");
             }
 
             send(sock, "File uploaded successfully.\n", 28, 0);
@@ -155,37 +127,30 @@ void *client_handler(void *socket_desc) {
     return NULL;
 }
 
-
-
 int main() {
     int server_sock, client_sock, c;
     struct sockaddr_in server, client;
 
-    // 소켓 생성
     server_sock = socket(AF_INET, SOCK_STREAM, 0);
     if (server_sock == -1) {
         perror("Could not create socket");
         return 1;
     }
 
-    // 서버 주소 구조체 준비
     server.sin_family = AF_INET;
     server.sin_addr.s_addr = INADDR_ANY;
     server.sin_port = htons(PORT);
 
-    // 소켓에 주소 할당
     if (bind(server_sock, (struct sockaddr *)&server, sizeof(server)) < 0) {
         perror("Bind failed. Error");
         return 1;
     }
 
-    // 연결 대기
     listen(server_sock, MAX_CONN);
     printf("Server listening on port %d...\n", PORT);
 
     c = sizeof(struct sockaddr_in);
 
-    // 클라이언트 연결 수락
     while (1) {
         client_sock = accept(server_sock, (struct sockaddr *)&client, (socklen_t*)&c);
         if (client_sock < 0) {
@@ -195,29 +160,18 @@ int main() {
 
         pthread_t thread_id;
         int *new_sock = malloc(sizeof(int));
-        if (new_sock == NULL) {
+        if (!new_sock) {
             perror("Failed to allocate memory");
             continue;
         }
         *new_sock = client_sock;
 
-        // 클라이언트 처리를 위한 스레드 생성
         if (pthread_create(&thread_id, NULL, client_handler, (void*)new_sock) < 0) {
             perror("could not create thread");
             return 1;
         }
-
-        char client_ip[INET_ADDRSTRLEN];
-        inet_ntop(AF_INET, &(client.sin_addr), client_ip, INET_ADDRSTRLEN);
-        printf("Client connected with IP: %s and port: %d\n", client_ip, ntohs(client.sin_port));
     }
 
-    if (client_sock < 0) {
-        perror("Accept failed");
-        return 1;
-    }
-
-    // 소켓 닫기
     close(server_sock);
     return 0;
 }

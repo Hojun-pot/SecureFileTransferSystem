@@ -74,9 +74,16 @@ void *client_handler(void *socket_desc) {
         trim_whitespace(userID);
 
         index = validate_user_id(userID);
-        if (index == -1) {
+        while (index == -1) {
             send(sock, "Invalid user ID. Enter again: ", 30, 0);
-            continue;
+            read_size = recv(sock, userID, BUFFER_SIZE, 0);
+            if (read_size <= 0) {
+                fprintf(logFile, "Connection lost or client disconnected\n");
+                break;
+            }
+            userID[read_size] = '\0';
+            trim_whitespace(userID);
+            index = validate_user_id(userID);
         }
 
         fprintf(logFile, "Valid user ID received: %s\n", userID);

@@ -125,9 +125,21 @@ void *client_handler(void *socket_desc) {
         char fullPath[256];
         sprintf(fullPath, "%s/%s", access_control[index].directory, filePath);
 
-        struct stat st = {0};
-        if (stat(fullPath, &st) == -1) {
-            mkdir(access_control[index].directory, 0700);
+        struct stat st;
+        if (stat(fullPath, &st) == 0) {
+            // 파일이 이미 존재하는 경우
+            send(sock, "File already exists.\n", 21, 0);
+        } else {
+            // 파일이 존재하지 않는 경우 새로 생성
+            int file_fd = open(fullPath, O_WRONLY | O_CREAT, 0666);
+            if (file_fd < 0) {
+                perror("Failed to open file");
+                send(sock, "Failed to open file.\n", 21, 0);
+            } else {
+                write(file_fd, content, strlen(content));
+                close(file_fd);
+                send(sock, "File created and content written successfully.\n", 47, 0);
+            }
         }
 
         int file_fd = open(fullPath, O_WRONLY | O_CREAT, 0666);

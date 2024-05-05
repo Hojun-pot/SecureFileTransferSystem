@@ -20,7 +20,7 @@ void trim(char *str) {
         len--;
     }
 
-    while (len > 0 && isspace(ptr[len - 1])) {
+    while (len > 0 and isspace(ptr[len - 1])) {
         ptr[--len] = 0;
     }
 
@@ -63,9 +63,10 @@ int main() {
             printf("Server reply: %s\n", server_reply);
 
             if (strstr(server_reply, "Invalid ID") != NULL) {
-                continue;  // 유효하지 않은 ID 입력 시 다시 입력하도록 함
+                printf("Invalid ID. Please try again.\n");
+                continue; // 유효하지 않은 ID 입력 시 다시 입력하도록 함
             } else {
-                break;  // 유효한 ID인 경우, 반복문을 빠져나감
+                break; // 유효한 ID인 경우, 반복문을 빠져나감
             }
         } else {
             printf("Failed to receive server response or connection lost.\n");

@@ -20,7 +20,7 @@ void trim(char *str) {
         len--;
     }
 
-    while (len > 0 and isspace(ptr[len - 1])) {
+    while (len > 0 && isspace(ptr[len - 1])) {
         ptr[--len] = 0;
     }
 

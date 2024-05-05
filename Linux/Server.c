@@ -100,36 +100,20 @@ void *client_handler(void *socket_desc) {
 
         read_size = recv(sock, userID, BUFFER_SIZE, 0);
         if (read_size <= 0) {
-            fprintf(logFile, "[%s] Failed to receive userID from client\n", dateStr);
+            fprintf(logFile, "[%s] Connection lost or client disconnected\n", dateStr);
             break;
         }
 
         userID[read_size] = '\0';
         trim_whitespace(userID);
 
-        if (validate_user_id(userID) == -1) {
-            char *message = "Invalid ID. Enter again: ";
-            send(sock, message, strlen(message), 0);
+        if (!validate_user_id(userID)) {
+            send(sock, "Invalid user ID. Enter again: ", 30, 0);
             continue;
-        } else {
-            fprintf(logFile, "[%s] Valid user ID received: %s\n", dateStr, userID);
-            send(sock, "Valid user ID.", 14, 0);
-            break;
-        }
         }
 
-        userID[read_size] = '\0';
-        trim_whitespace(userID);
-
-        index = validate_user_id(userID);
-        if (index == -1) {
-            send(sock, "Invalid user ID.\n", 17, 0);
-            fprintf(logFile, "[%s] Client(%s:%d) Invalid userID received: %s\n", dateStr, inet_ntoa(addr.sin_addr), ntohs(addr.sin_port), userID);
-            continue;
-        } else {
-            fprintf(logFile, "[%s] Client %s:%d validated with ID: %s\n", dateStr, inet_ntoa(addr.sin_addr), ntohs(addr.sin_port), userID);
-            send(sock, "Valid user ID.", 14, 0);
-        }
+        fprintf(logFile, "[%s] Valid user ID received: %s\n", dateStr, userID);
+        send(sock, "Valid user ID.", 14, 0);
 
         read_size = recv(sock, filePath, BUFFER_SIZE, 0);
         if (read_size <= 0) {
@@ -148,17 +132,16 @@ void *client_handler(void *socket_desc) {
         fprintf(logFile, "[%s] User %s edited file: %s\n", dateStr, userID, filePath);
 
         char fullPath[256];
-        sprintf(fullPath, "%s/%s", access_control[index].directory, filePath);
+        sprintf(fullPath, "%s/%s", access_control[validate_user_id(userID)].directory, filePath);
         file_fd = open(fullPath, O_WRONLY | O_CREAT, 0666);
         if (file_fd > 0) {
             write(file_fd, content, strlen(content));
             close(file_fd);
 
-            // 파일의 소유자 및 그룹 설정
-            struct passwd *pwd = getpwnam(userID); // userID는 유효한 사용자 이름이어야 합니다.
-            struct group *grp = getgrnam("manufacturing"); // 또는 "distribution" 등
+            struct passwd *pwd = getpwnam(userID); // Get user info
+            struct group *grp = getgrnam("manufacturing"); // Or "distribution"
             if (pwd && grp) {
-                chown(fullPath, pwd->pw_uid, grp->gr_gid);
+                chown(fullPath, pwd->pw_uid, grp->gr_gid); // Set owner
             } else {
                 fprintf(stderr, "User or group not found.\n");
             }
@@ -169,20 +152,16 @@ void *client_handler(void *socket_desc) {
             send(sock, "Error saving file.\n", 19, 0);
             fprintf(logFile, "[%s] Failed to save file at %s\n", dateStr, fullPath);
         }
-    
 
-    // 클라이언트 연결 종료 메시지 출력
-    t = time(NULL);
-    tm = localtime(&t);
-    strftime(dateStr, sizeof(dateStr), "%c", tm);
-    fprintf(logFile, "[%s] Connection closed with client %s:%d\n", dateStr, inet_ntoa(addr.sin_addr), ntohs(addr.sin_port));
-    printf("[%s] Client disconnected with IP: %s and port: %d\n", dateStr, inet_ntoa(addr.sin_addr), ntohs(addr.sin_port));
-    
+        break;  // Exit after one transaction for simplicity
+    }
+
     fclose(logFile);
     close(sock);
     free(socket_desc);
     return NULL;
 }
+
 
 int main() {
     int server_sock, client_sock, c;

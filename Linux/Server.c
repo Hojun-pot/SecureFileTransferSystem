@@ -38,9 +38,16 @@ void trim_whitespace(char *str) {
     end[1] = '\0';
 }
 
-int validate_user_id(const char *userID) {
+int validate_user_group(const char *userID) {
+    struct passwd *pwd = getpwnam(userID);
+    if (pwd == NULL) {
+        return -1;
+    }
+    gid_t user_gid = pwd->pw_gid;
+
     for (int i = 0; i < sizeof(access_control) / sizeof(UserAccess); i++) {
-        if (strcmp(access_control[i].user_id, userID) == 0) {
+        struct group *grp = getgrnam(access_control[i].user_id);
+        if (grp != NULL && grp->gr_gid == user_gid) {
             return i;
         }
     }
@@ -73,7 +80,7 @@ void *client_handler(void *socket_desc) {
     userID[read_size] = '\0';
     trim_whitespace(userID);
 
-    index = validate_user_id(userID);
+    index = validate_user_group(userID);
     while (index == -1) {
         send(sock, "Invalid user ID. Enter again: ", 30, 0);
         read_size = recv(sock, userID, BUFFER_SIZE, 0);
@@ -83,7 +90,7 @@ void *client_handler(void *socket_desc) {
         }
         userID[read_size] = '\0';
         trim_whitespace(userID);
-        index = validate_user_id(userID);
+        index = validate_user_group(userID);
     }
 
         fprintf(logFile, "Valid user ID received: %s\n", userID);

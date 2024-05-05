@@ -124,6 +124,25 @@ void *client_handler(void *socket_desc) {
 
         char fullPath[256];
         sprintf(fullPath, "%s/%s", access_control[index].directory, filePath);
+
+        // 파일 경로 확인
+        if (access(fullPath, F_OK) != 0) {
+            perror("File path does not exist or is incorrect");
+        }
+
+        // 쓰기 권한 확인
+        if (access(fullPath, W_OK) != 0) {
+            perror("No write permission to the file");
+        }
+
+        // 디스크 공간 확인
+        struct statvfs stat;
+        if (statvfs(fullPath, &stat) != 0) {
+            perror("Failed to get file system information");
+        } else if (stat.f_bavail * stat.f_bsize < strlen(content)) {
+            fprintf(stderr, "Not enough disk space\n");
+        }
+        
         int file_fd = open(fullPath, O_WRONLY | O_CREAT, 0666);
         if (file_fd > 0) {
             write(file_fd, content, strlen(content));
@@ -140,7 +159,7 @@ void *client_handler(void *socket_desc) {
             send(sock, "File uploaded successfully.\n", 28, 0);
             fprintf(logFile, "File updated to %s\n", fullPath);
         } else {
-            send(sock, "Error saving file.\n", 19, 0);
+            perror("Error saving file");
             fprintf(logFile, "Failed to save file at %s\n", fullPath);
         }
 

@@ -56,11 +56,24 @@ int main() {
 
     printf("Connected to server.\n");
 
-    // 유저 ID 입력
+    // 유저 ID 입력과 서버 응답 처리
+    do {
     printf("Enter user ID:\n> ");
     fgets(message, sizeof(message), stdin);
     trim(message); // Trim whitespace
 
+    send(sock, message, strlen(message), 0);
+
+    result = recv(sock, server_reply, BUFFER_SIZE, 0);
+    if (result > 0) {
+        server_reply[result] = '\0';
+        printf("Server reply: %s\n", server_reply);
+    } else {
+        printf("Failed to receive server response or connection lost.\n");
+        close(sock);
+        return -1;
+    }
+    } while (strstr(server_reply, "Invalid ID") != NULL);
     send(sock, message, strlen(message), 0);
 
     result = recv(sock, server_reply, BUFFER_SIZE, 0);

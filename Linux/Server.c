@@ -89,35 +89,34 @@ void *client_handler(void *socket_desc) {
         return NULL;
     }
 
-    // 현재 시간 구하기
-    time_t t = time(NULL);
-    struct tm *tm = localtime(&t); // tm 변수 초기화
+    time_t t;
+    struct tm *tm;
     char dateStr[64];
-    strftime(dateStr, sizeof(dateStr), "%c", tm);
-    
-    // with user ID: %s, userID
-    fprintf(logFile, "[%s] Client connected from %s:%d \n", dateStr, inet_ntoa(addr.sin_addr), ntohs(addr.sin_port));
 
     while (1) {
         t = time(NULL);
         tm = localtime(&t);
         strftime(dateStr, sizeof(dateStr), "%c", tm);
 
-        // 아이디 입력 받기
         read_size = recv(sock, userID, BUFFER_SIZE, 0);
-        if (read_size < 0) {
+        if (read_size <= 0) {
             fprintf(logFile, "[%s] Failed to receive userID from client\n", dateStr);
             break;
         }
-        userID[read_size] = '\0';
 
-        // 아이디 확인
-        if (!check_id(userID)) {
+        userID[read_size] = '\0';
+        trim_whitespace(userID);
+
+        if (validate_user_id(userID) == -1) {
             char *message = "Invalid ID. Enter again: ";
-            write(sock, message, strlen(message));
-            continue;  // 아이디가 유효하지 않으면 다음 반복을 시작
+            send(sock, message, strlen(message), 0);
+            continue;
+        } else {
+            fprintf(logFile, "[%s] Valid user ID received: %s\n", dateStr, userID);
+            send(sock, "Valid user ID.", 14, 0);
+            break;
         }
-        break;
+        }
 
         userID[read_size] = '\0';
         trim_whitespace(userID);
@@ -170,7 +169,7 @@ void *client_handler(void *socket_desc) {
             send(sock, "Error saving file.\n", 19, 0);
             fprintf(logFile, "[%s] Failed to save file at %s\n", dateStr, fullPath);
         }
-    }
+    
 
     // 클라이언트 연결 종료 메시지 출력
     t = time(NULL);

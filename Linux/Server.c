@@ -45,10 +45,21 @@ int validate_user_group(const char *userID) {
     }
     gid_t user_gid = pwd->pw_gid;
 
+    gid_t groups[50];
+    int ngroups = 50;
+    if (getgrouplist(userID, user_gid, groups, &ngroups) == -1) {
+        perror("getgrouplist");
+        return -1;
+    }
+
     for (int i = 0; i < sizeof(access_control) / sizeof(UserAccess); i++) {
         struct group *grp = getgrnam(access_control[i].user_id);
-        if (grp != NULL && strcmp(grp->gr_name, access_control[i].user_id) == 0) {
-            return i;
+        if (grp != NULL) {
+            for (int j = 0; j < ngroups; j++) {
+                if (groups[j] == grp->gr_gid) {
+                    return i;
+                }
+            }
         }
     }
     return -1;

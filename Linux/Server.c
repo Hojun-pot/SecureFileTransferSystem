@@ -73,7 +73,15 @@ int create_and_write_file(const char* file_path, const char* content) {
         perror("Failed to open or create file");
         return -1;
     }
-
+    off_t current_size = lseek(file_fd, 0, SEEK_END);
+    if (current_size > 0) {  // 파일 크기가 0보다 크다면, 이미 내용이 있다는 의미입니다.
+        if (write(file_fd, "\n", 1) < 0) {  // 공백 문자를 파일에 쓴다.
+            perror("Failed to write space to file");
+            close(file_fd);
+            return -1;
+        }
+    }
+    
     if (write(file_fd, content, strlen(content)) < 0) {
         perror("Failed to write to file");
         close(file_fd);

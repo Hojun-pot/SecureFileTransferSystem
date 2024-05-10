@@ -38,7 +38,7 @@ void log_entry(FILE *logFile, const char *userID, const char *message) {
     char *timestamp = ctime(&now);  // ctime() returns a string that ends with '\n'
     timestamp[strlen(timestamp)-1] = '\0'; // Remove the newline character
 
-    log_entry(logFile, "[%s] (%s): %s\n", timestamp, userID, message);
+    fprintf(logFile, "[%s] (%s): %s\n", timestamp, userID, message);
 }
 
 void trim_whitespace(char *str) {
@@ -194,10 +194,10 @@ void *client_handler(void *socket_desc) {
 
     // User ID validation loop
     while (1) {
-        log_entry(logFile, "SYSTEM", "Awaiting user ID from client...");
+        log_entry(logFile, userID, "Awaiting file path from client...");
         read_size = recv(sock, userID, BUFFER_SIZE, 0);
         if (read_size <= 0) {
-            fprintf(logFile, "Connection lost or client disconnected\n");
+           log_entry(logFile, userID, "Connection lost or client disconnected\n");
             break;
         }
         userID[read_size] = '\0';
@@ -205,7 +205,7 @@ void *client_handler(void *socket_desc) {
         log_entry(logFile, "Received user ID: %s\n", userID);
         index = validate_user_group(userID);
         if (index != -1) {
-            log_entry(logFile, "Valid user ID received: %s\n", userID);
+            log_entry(logFile, userID, "Valid user ID received\n");
             send(sock, "Valid user ID.", 14, 0);
             break;
         } else {
@@ -216,22 +216,25 @@ void *client_handler(void *socket_desc) {
     // File path entry loop
     if (index != -1) {
         while (1) {
-            log_entry(logFile, "Awaiting file path from client...\n");
+            log_entry(logFile, userID, "Awaiting file path from client...\n");
             read_size = recv(sock, filePath, BUFFER_SIZE, 0);
             if (read_size <= 0) {
-                log_entry(logFile, "Failed to receive filePath from client\n");
+                log_entry(logFile, userID, "Failed to receive filePath from client\n");
                 break;
             }
             filePath[read_size] = '\0';
             trim_whitespace(filePath);
-            log_entry(logFile, "Received file path: %s\n", filePath);
+            char logMessage[512]; // Ensure this buffer is large enough for your needs
+            // After receiving filePath from client
+            snprintf(logMessage, sizeof(logMessage), "Received file path: %s", filePath);
+            log_entry(logFile, userID, logMessage);
             if (check_extension(filePath)) {
                 send(sock, "File path accepted.\n", 20, 0);
-                log_entry(logFile, "Valid file extension received.\n");
+                log_entry(logFile, userID, "Valid file extension received.\n");
                 break;
             } else {
                 send(sock, "Invalid file extension. Please enter a .txt file path.\n", 60, 0);
-                log_entry(logFile, "Invalid file extension received.\n");
+                log_entry(logFile, userID, "Invalid file extension received.\n");
             }
         }
     }
@@ -244,13 +247,16 @@ void *client_handler(void *socket_desc) {
             content[read_size] = '\0';
             char fullPath[256];
             sprintf(fullPath, "%s/%s", access_control[index].directory, filePath);
-            log_entry(logFile, "Writing content to file: %s\n", fullPath);
+            char logMessage[512]; // Ensure this buffer is large enough for your needs
+            // After receiving filePath from client
             if (create_and_write_file(fullPath, content, userID) == 0) {
                 send(sock, "File created and content written successfully.\n", 47, 0);
-                log_entry(logFile, "File written successfully.\n");
+                snprintf(logMessage, sizeof(logMessage), "File written successfully. %s", filePath);
+                log_entry(logFile, userID, logMessage);
             } else {
                 send(sock, "Failed to open file.\n", 21, 0);
-                log_entry(logFile, "Failed to write to file.\n");
+                snprintf(logMessage, sizeof(logMessage), "Failed to open file. %s", filePath);
+                log_entry(logFile, userID, logMessage); 
             }
         } else {
             log_entry(logFile, "Failed to receive content from client\n");

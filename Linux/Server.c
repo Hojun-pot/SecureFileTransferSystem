@@ -13,6 +13,7 @@
 #include <ctype.h>
 #include <arpa/inet.h>
 #include <sys/statvfs.h>
+#include <stdbool.h>
 #include <sys/stat.h> 
 
 #define PORT 8080

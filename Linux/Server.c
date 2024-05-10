@@ -13,7 +13,7 @@
 #include <ctype.h>
 #include <arpa/inet.h>
 #include <sys/statvfs.h>
-#include <sys/stat.h>   // 파일 상태 정보를 위한 헤더
+#include <sys/stat.h> 
 
 #define PORT 8080
 #define MAX_CONN 10
@@ -69,10 +69,10 @@ int validate_user_group(const char *userID) {
 
 int lock_file(int fd) {
     struct flock fl;
-    fl.l_type = F_WRLCK;  // 쓰기 잠금 설정
+    fl.l_type = F_WRLCK;  // write lock
     fl.l_whence = SEEK_SET;
     fl.l_start = 0;
-    fl.l_len = 0;  // 파일 전체에 대한 잠금
+    fl.l_len = 0;  // lock entire file
 
     if (fcntl(fd, F_SETLK, &fl) == -1) {
         perror("Locking file failed");
@@ -83,7 +83,7 @@ int lock_file(int fd) {
 
 int unlock_file(int fd) {
     struct flock fl;
-    fl.l_type = F_UNLCK;  // 잠금 해제
+    fl.l_type = F_UNLCK;  // unlock
     fl.l_whence = SEEK_SET;
     fl.l_start = 0;
     fl.l_len = 0;
@@ -93,6 +93,15 @@ int unlock_file(int fd) {
         return -1;
     }
     return 0;
+}
+
+bool check_extension(const char *file_path) {
+    const char *extension = strrchr(file_path, '.');
+    //Edd more extensions if needed
+    if (extension != NULL && strcmp(extension, ".txt") == 0) {
+        return true;
+    }
+    return false;
 }
 
 int create_and_write_file(const char* file_path, const char* content, const char* user_id) {
@@ -141,6 +150,14 @@ int create_and_write_file(const char* file_path, const char* content, const char
     return 0;  // 성공 시 0 반환
 }
 
+bool is_txt_extension(const char *file_path) {
+    const char *extension = strrchr(file_path, '.');
+    if (extension != NULL && strcmp(extension, ".txt") == 0) {
+        return true;
+    }
+    return false;
+}
+
 void *client_handler(void *socket_desc) {
     int sock = *(int*)socket_desc;
     char userID[BUFFER_SIZE], filePath[BUFFER_SIZE], content[BUFFER_SIZE * 4];
@@ -183,12 +200,26 @@ void *client_handler(void *socket_desc) {
         fprintf(logFile, "Valid user ID received: %s\n", userID);
         send(sock, "Valid user ID.", 14, 0);
 
-        read_size = recv(sock, filePath, BUFFER_SIZE, 0);
-        if (read_size <= 0) {
-            fprintf(logFile, "Failed to receive filePath from client\n");
-            break;
+        bool valid_extension = false;
+        while (!valid_extension) {
+            read_size = recv(sock, filePath, BUFFER_SIZE, 0);
+            if (read_size <= 0) {
+                fprintf(logFile, "Failed to receive filePath from client\n");
+                break;
+            }
+            filePath[read_size] = '\0';
+
+            // Check if the file extension is .txt
+            if (!is_txt_extension(filePath)) {
+                send(sock, "Invalid file extension. Please enter a .txt file path.\n", 60, 0);
+                continue; // Prompt the client to re-enter the file path
+            }
+            valid_extension = true; // Correct extension, proceed further
         }
-        filePath[read_size] = '\0';
+
+        if (!valid_extension) {
+            continue; // If not valid, skip to next iteration for a new userID or terminate
+        }
 
         read_size = recv(sock, content, BUFFER_SIZE * 4, 0);
         if (read_size <= 0) {
@@ -214,6 +245,7 @@ void *client_handler(void *socket_desc) {
     free(socket_desc);
     return NULL;
 }
+
 
 int main() {
     int server_sock, client_sock, c;

@@ -75,10 +75,30 @@ int main() {
         }
     }
 
-    printf("Enter file path:\n> ");
-    fgets(message, sizeof(message), stdin);
-    trim(message);
-    send(sock, message, strlen(message), 0);
+    // File path entry loop
+    while (1) {
+        printf("Enter .txt file path:\n> ");
+        fgets(message, sizeof(message), stdin);
+        trim(message);
+        send(sock, message, strlen(message), 0);
+
+        result = recv(sock, server_reply, BUFFER_SIZE, 0);
+        if (result > 0) {
+            server_reply[result] = '\0';
+            printf("Server reply: %s\n", server_reply);
+
+            if (strstr(server_reply, "Invalid file extension") != NULL) {
+                printf("Invalid file path. Please enter a .txt file path.\n");
+                continue;
+            } else {
+                break;
+            }
+        } else {
+            printf("Failed to receive server response or connection lost.\n");
+            close(sock);
+            return -1;
+        }
+    }
 
     printf("Enter content:\n> ");
     fgets(message, sizeof(message), stdin);

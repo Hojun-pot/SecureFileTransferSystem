@@ -15,6 +15,7 @@
 #include <sys/statvfs.h>
 #include <stdbool.h>
 #include <sys/stat.h> 
+#include <errno.h>
 
 #define PORT 8080
 #define MAX_CONN 10

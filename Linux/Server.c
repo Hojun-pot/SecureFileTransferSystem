@@ -98,7 +98,6 @@ int unlock_file(int fd) {
 
 bool check_extension(const char *file_path) {
     const char *extension = strrchr(file_path, '.');
-    //Edd more extensions if needed
     if (extension != NULL && strcmp(extension, ".txt") == 0) {
         return true;
     }
@@ -156,6 +155,7 @@ void *client_handler(void *socket_desc) {
     char userID[BUFFER_SIZE], filePath[BUFFER_SIZE], content[BUFFER_SIZE * 4];
     int read_size, index;
 
+    // Lock and open the log file
     pthread_mutex_lock(&lock);
     char logPath[512] = "/home/server_logs/server_log.txt";
     FILE *logFile = fopen(logPath, "a");
@@ -168,7 +168,9 @@ void *client_handler(void *socket_desc) {
         return NULL;
     }
 
+    // User ID validation loop
     while (1) {
+        fprintf(logFile, "Awaiting user ID from client...\n");
         read_size = recv(sock, userID, BUFFER_SIZE, 0);
         if (read_size <= 0) {
             fprintf(logFile, "Connection lost or client disconnected\n");
@@ -176,61 +178,59 @@ void *client_handler(void *socket_desc) {
         }
         userID[read_size] = '\0';
         trim_whitespace(userID);
-
+        fprintf(logFile, "Received user ID: %s\n", userID);
         index = validate_user_group(userID);
-        while (index == -1) {
+        if (index != -1) {
+            fprintf(logFile, "Valid user ID received: %s\n", userID);
+            send(sock, "Valid user ID.", 14, 0);
+            break;
+        } else {
             send(sock, "Invalid user ID. Enter again: ", 30, 0);
-            read_size = recv(sock, userID, BUFFER_SIZE, 0);
-            if (read_size <= 0) {
-                fprintf(logFile, "Connection lost or client disconnected\n");
-                break;
-            }
-            userID[read_size] = '\0';
-            trim_whitespace(userID);
-            index = validate_user_group(userID);
         }
+    }
 
-        fprintf(logFile, "Valid user ID received: %s\n", userID);
-        send(sock, "Valid user ID.", 14, 0);
-
-        bool valid_extension = false;
-        while (!valid_extension) {
+    // File path entry loop
+    if (index != -1) {
+        while (1) {
+            fprintf(logFile, "Awaiting file path from client...\n");
             read_size = recv(sock, filePath, BUFFER_SIZE, 0);
             if (read_size <= 0) {
                 fprintf(logFile, "Failed to receive filePath from client\n");
                 break;
             }
             filePath[read_size] = '\0';
-
-            // Check if the file extension is .txt
-            if (!check_extension(filePath)) {
+            trim_whitespace(filePath);
+            fprintf(logFile, "Received file path: %s\n", filePath);
+            if (check_extension(filePath)) {
+                send(sock, "File path accepted.\n", 20, 0);
+                fprintf(logFile, "Valid file extension received.\n");
+                break;
+            } else {
                 send(sock, "Invalid file extension. Please enter a .txt file path.\n", 60, 0);
-                continue; // Prompt the client to re-enter the file path
+                fprintf(logFile, "Invalid file extension received.\n");
             }
-            valid_extension = true; // Correct extension, proceed further
         }
+    }
 
-        if (!valid_extension) {
-            continue; // If not valid, skip to next iteration for a new userID or terminate
-        }
-
+    // File content receiving and writing
+    if (index != -1 && strlen(filePath) > 0) {
+        fprintf(logFile, "Awaiting content from client...\n");
         read_size = recv(sock, content, BUFFER_SIZE * 4, 0);
-        if (read_size <= 0) {
-            fprintf(logFile, "Failed to receive content from client\n");
-            break;
-        }
-        content[read_size] = '\0';
-
-        char fullPath[256];
-        sprintf(fullPath, "%s/%s", access_control[index].directory, filePath);
-
-        if (create_and_write_file(fullPath, content, userID) == 0) {
-            send(sock, "File created and content written successfully.\n", 47, 0);
+        if (read_size > 0) {
+            content[read_size] = '\0';
+            char fullPath[256];
+            sprintf(fullPath, "%s/%s", access_control[index].directory, filePath);
+            fprintf(logFile, "Writing content to file: %s\n", fullPath);
+            if (create_and_write_file(fullPath, content, userID) == 0) {
+                send(sock, "File created and content written successfully.\n", 47, 0);
+                fprintf(logFile, "File written successfully.\n");
+            } else {
+                send(sock, "Failed to open file.\n", 21, 0);
+                fprintf(logFile, "Failed to write to file.\n");
+            }
         } else {
-            send(sock, "Failed to open file.\n", 21, 0);
+            fprintf(logFile, "Failed to receive content from client\n");
         }
-
-        break;
     }
 
     fclose(logFile);

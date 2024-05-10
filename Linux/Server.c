@@ -167,7 +167,7 @@ void *client_handler(void *socket_desc) {
         char fullPath[256];
         sprintf(fullPath, "%s/%s", access_control[index].directory, filePath);
 
-        if (create_and_write_file(fullPath, content) == 0) {
+        if (create_and_write_file(fullPath, content, userID) == 0) {
             send(sock, "File created and content written successfully.\n", 47, 0);
         } else {
             send(sock, "Failed to open file.\n", 21, 0);

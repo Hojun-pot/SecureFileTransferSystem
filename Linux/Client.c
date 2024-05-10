@@ -96,7 +96,7 @@ int main() {
             printf("Server reply: %s\n", server_reply);
 
             if (strstr(server_reply, "Invalid file extension") != NULL) {
-                printf("Invalid file path. Please enter a .txt file path.\n");
+                printf("Invalid file path. Please check file path and enter again:\n");
                 continue;
             } else {
                 break;

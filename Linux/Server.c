@@ -33,6 +33,14 @@ UserAccess access_control[] = {
     {"Distribution_User", "/home/distribution"}
 };
 
+void log_entry(FILE *logFile, const char *userID, const char *message) {
+    time_t now = time(NULL);
+    char *timestamp = ctime(&now);  // ctime() returns a string that ends with '\n'
+    timestamp[strlen(timestamp)-1] = '\0'; // Remove the newline character
+
+    log_entry(logFile, "[%s] (%s): %s\n", timestamp, userID, message);
+}
+
 void trim_whitespace(char *str) {
     char *end;
     while (isspace((unsigned char)*str)) str++;
@@ -106,7 +114,7 @@ bool check_extension(const char *file_path) {
 }
 
 int create_and_write_file(const char* file_path, const char* content, const char* user_id) {
-    // Existing file creation and writing
+    // Open the file with the appropriate flags and permissions
     int file_fd = open(file_path, O_WRONLY | O_CREAT | O_APPEND, 0660);
     if (file_fd < 0) {
         switch(errno) {
@@ -121,39 +129,49 @@ int create_and_write_file(const char* file_path, const char* content, const char
         }
         return -1;
     }
-    // 파일이 비어 있지 않은 경우, 공백을 추가합니다.
+
+    // Attempt to lock the file immediately after opening
+    if (lock_file(file_fd) == -1) {
+        close(file_fd); // Make sure to close the file descriptor if locking fails
+        return -1;
+    }
+
+    // Check if file is empty and if not, add a newline
     off_t current_size = lseek(file_fd, 0, SEEK_END);
     if (current_size > 0) {
         if (write(file_fd, "\n", 1) < 0) {
             perror("Failed to write space to file");
+            unlock_file(file_fd);
             close(file_fd);
             return -1;
         }
     }
 
-    // 사용자 아이디를 포함한 새로운 내용을 준비합니다.
-    int content_length = strlen(content) + strlen(user_id) + 3; // 내용 + 사용자 아이디 + 괄호와 널 문자
+    // Prepare content to be written including user ID
+    int content_length = strlen(content) + strlen(user_id) + 3; // content + user ID + parentheses and null terminator
     char* full_content = malloc(content_length);
     if (full_content == NULL) {
         perror("Failed to allocate memory for full content");
+        unlock_file(file_fd);
         close(file_fd);
         return -1;
     }
 
     sprintf(full_content, "%s (%s)", content, user_id);
 
-    // 새로운 내용을 파일에 씁니다.
+    // Write the prepared content to the file
     if (write(file_fd, full_content, strlen(full_content)) < 0) {
         perror("Failed to write to file");
         free(full_content);
+        unlock_file(file_fd);
         close(file_fd);
         return -1;
     }
-    
+
     free(full_content);
     unlock_file(file_fd);
-    close(file_fd);  // 파일 디스크립터를 닫음
-    return 0;  // 성공 시 0 반환
+    close(file_fd); // Close the file descriptor after unlocking
+    return 0; // Return success
 }
 
 void *client_handler(void *socket_desc) {
@@ -176,7 +194,7 @@ void *client_handler(void *socket_desc) {
 
     // User ID validation loop
     while (1) {
-        fprintf(logFile, "Awaiting user ID from client...\n");
+        log_entry(logFile, "SYSTEM", "Awaiting user ID from client...");
         read_size = recv(sock, userID, BUFFER_SIZE, 0);
         if (read_size <= 0) {
             fprintf(logFile, "Connection lost or client disconnected\n");
@@ -184,58 +202,58 @@ void *client_handler(void *socket_desc) {
         }
         userID[read_size] = '\0';
         trim_whitespace(userID);
-        fprintf(logFile, "Received user ID: %s\n", userID);
+        log_entry(logFile, "Received user ID: %s\n", userID);
         index = validate_user_group(userID);
         if (index != -1) {
-            fprintf(logFile, "Valid user ID received: %s\n", userID);
+            log_entry(logFile, "Valid user ID received: %s\n", userID);
             send(sock, "Valid user ID.", 14, 0);
             break;
         } else {
-            send(sock, "Invalid user ID. Enter again: ", 30, 0);
+            send(sock, "Invalid user ID. Check the ID again.", 30, 0);
         }
     }
 
     // File path entry loop
     if (index != -1) {
         while (1) {
-            fprintf(logFile, "Awaiting file path from client...\n");
+            log_entry(logFile, "Awaiting file path from client...\n");
             read_size = recv(sock, filePath, BUFFER_SIZE, 0);
             if (read_size <= 0) {
-                fprintf(logFile, "Failed to receive filePath from client\n");
+                log_entry(logFile, "Failed to receive filePath from client\n");
                 break;
             }
             filePath[read_size] = '\0';
             trim_whitespace(filePath);
-            fprintf(logFile, "Received file path: %s\n", filePath);
+            log_entry(logFile, "Received file path: %s\n", filePath);
             if (check_extension(filePath)) {
                 send(sock, "File path accepted.\n", 20, 0);
-                fprintf(logFile, "Valid file extension received.\n");
+                log_entry(logFile, "Valid file extension received.\n");
                 break;
             } else {
                 send(sock, "Invalid file extension. Please enter a .txt file path.\n", 60, 0);
-                fprintf(logFile, "Invalid file extension received.\n");
+                log_entry(logFile, "Invalid file extension received.\n");
             }
         }
     }
 
     // File content receiving and writing
     if (index != -1 && strlen(filePath) > 0) {
-        fprintf(logFile, "Awaiting content from client...\n");
+        log_entry(logFile, "Awaiting content from client...\n");
         read_size = recv(sock, content, BUFFER_SIZE * 4, 0);
         if (read_size > 0) {
             content[read_size] = '\0';
             char fullPath[256];
             sprintf(fullPath, "%s/%s", access_control[index].directory, filePath);
-            fprintf(logFile, "Writing content to file: %s\n", fullPath);
+            log_entry(logFile, "Writing content to file: %s\n", fullPath);
             if (create_and_write_file(fullPath, content, userID) == 0) {
                 send(sock, "File created and content written successfully.\n", 47, 0);
-                fprintf(logFile, "File written successfully.\n");
+                log_entry(logFile, "File written successfully.\n");
             } else {
                 send(sock, "Failed to open file.\n", 21, 0);
-                fprintf(logFile, "Failed to write to file.\n");
+                log_entry(logFile, "Failed to write to file.\n");
             }
         } else {
-            fprintf(logFile, "Failed to receive content from client\n");
+            log_entry(logFile, "Failed to receive content from client\n");
         }
     }
 

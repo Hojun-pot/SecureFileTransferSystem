@@ -118,7 +118,7 @@ int create_and_write_file(const char* file_path, const char* content, const char
     // 파일이 비어 있지 않은 경우, 공백을 추가합니다.
     off_t current_size = lseek(file_fd, 0, SEEK_END);
     if (current_size > 0) {
-        if (write(file_fd, " ", 1) < 0) {
+        if (write(file_fd, "\n", 1) < 0) {
             perror("Failed to write space to file");
             close(file_fd);
             return -1;

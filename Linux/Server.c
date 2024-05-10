@@ -164,7 +164,7 @@ int create_and_write_file(const char* file_path, const char* content, const char
 void *client_handler(void *socket_desc) {
     int sock = *(int*)socket_desc;
     char userID[BUFFER_SIZE], filePath[BUFFER_SIZE], content[BUFFER_SIZE * 4];
-    int read_size, index;
+    int read_size, index = -1;  // Initialize index to -1 to indicate no valid user initially
 
     pthread_mutex_lock(&lock);
     FILE *logFile = fopen("/home/server_logs/server_log.txt", "a");
@@ -180,47 +180,46 @@ void *client_handler(void *socket_desc) {
     while ((read_size = recv(sock, userID, BUFFER_SIZE, 0)) > 0) {
         userID[read_size] = '\0';
         trim_whitespace(userID);
-        if ((index = validate_user_group(userID)) != -1) {
+        index = validate_user_group(userID);
+        if (index != -1) {
             send(sock, "Valid user ID.", 14, 0);
+            log_entry(logFile, userID, "Valid user ID received");
             break;
         } else {
             send(sock, "Invalid user ID. Check the ID again.", 36, 0);
+            log_entry(logFile, userID, "Invalid user ID received");
+            index = -1;  // Ensure index is reset to -1 to prevent further processing
+            continue;  // Optionally continue prompting for ID, or remove to exit handler
         }
     }
 
-    // Handle file path
+    // Handle file path only if a valid user ID was confirmed
     if (index != -1) {
         while ((read_size = recv(sock, filePath, BUFFER_SIZE, 0)) > 0) {
             filePath[read_size] = '\0';
             trim_whitespace(filePath);
             if (check_extension(filePath)) {
                 send(sock, "File path accepted.", 20, 0);
+                log_entry(logFile, userID, "File path accepted");
                 break;
             } else {
                 send(sock, "Invalid file extension. Please enter a .txt file path.", 55, 0);
+                log_entry(logFile, userID, "Invalid file extension");
             }
         }
     }
 
-    // Handle file content and writing
-    if (index != -1 && strlen(filePath) > 0 && (read_size = recv(sock, content, BUFFER_SIZE * 4, 0)) > 0) {
-        content[read_size] = '\0';
-        char fullPath[256];
-        snprintf(fullPath, sizeof(fullPath), "%s/%s", access_control[index].directory, filePath);
-        int result = create_and_write_file(fullPath, content, userID);
-        switch (result) {
-            case 0:
-                send(sock, "File created and content written successfully.", 47, 0);
-                break;
-            case EACCES:
-                send(sock, "Permission denied to write to file.", 36, 0);
-                break;
-            case ENOENT:
-                send(sock, "Directory does not exist.", 25, 0);
-                break;
-            default:
-                send(sock, "Failed to write to file due to an unknown error.", 49, 0);
-                break;
+    // Handle file content and writing only if a valid file path was received
+    if (index != -1 && strlen(filePath) > 0) {
+        read_size = recv(sock, content, BUFFER_SIZE * 4, 0);
+        if (read_size > 0) {
+            content[read_size] = '\0';
+            char fullPath[256];
+            snprintf(fullPath, sizeof(fullPath), "%s/%s", access_control[index].directory, filePath);
+            int result = create_and_write_file(fullPath, content, userID);
+            handle_file_creation_response(sock, logFile, userID, result, fullPath);
+        } else {
+            log_entry(logFile, userID, "Failed to receive content from client");
         }
     }
 
@@ -230,19 +229,39 @@ void *client_handler(void *socket_desc) {
     return NULL;
 }
 
+void handle_file_creation_response(int sock, FILE *logFile, const char *userID, int result, const char *fullPath) {
+    char logMessage[512];
+    switch (result) {
+        case 0:
+            send(sock, "File created and content written successfully.", 47, 0);
+            snprintf(logMessage, sizeof(logMessage), "File written successfully: %s", fullPath);
+            log_entry(logFile, userID, logMessage);
+            break;
+        case EACCES:
+            send(sock, "Permission denied to write to file.", 36, 0);
+            log_entry(logFile, userID, "Permission denied to write to file");
+            break;
+        case ENOENT:
+            send(sock, "Directory does not exist.", 25, 0);
+            log_entry(logFile, userID, "Directory does not exist");
+            break;
+        default:
+            send(sock, "Failed to write to file due to an unknown error.", 49, 0);
+            snprintf(logMessage, sizeof(logMessage), "Unknown error writing to file: %s", fullPath);
+            log_entry(logFile, userID, logMessage);
+            break;
+    }
+}
+
+
 int main() {
-    int server_sock, client_sock, c;
+    int server_sock, client_sock;
     struct sockaddr_in server, client;
+    socklen_t c;
 
     server_sock = socket(AF_INET, SOCK_STREAM, 0);
     if (server_sock == -1) {
         perror("Could not create socket");
-        return 1;
-    }
-
-    int opt = 1;
-    if (setsockopt(server_sock, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt)) == -1) {
-        perror("setsockopt");
         return 1;
     }
 
@@ -256,34 +275,26 @@ int main() {
     }
 
     listen(server_sock, MAX_CONN);
-    printf("Server listening on port %d...\n", PORT);
 
+    printf("Server listening on port %d...\n", PORT);
     c = sizeof(struct sockaddr_in);
 
     while (1) {
-        client_sock = accept(server_sock, (struct sockaddr *)&client, (socklen_t*)&c);
+        client_sock = accept(server_sock, (struct sockaddr *)&client, &c);
         if (client_sock < 0) {
             perror("Accept failed");
             continue;
         }
 
-        printf("Client connected with IP: %s and port: %d\n", inet_ntoa(client.sin_addr), ntohs(client.sin_port));
-
         pthread_t thread_id;
         int *new_sock = malloc(sizeof(int));
-        if (!new_sock) {
-            perror("Failed to allocate memory");
-            continue;
-        }
         *new_sock = client_sock;
 
-        if (pthread_create(&thread_id, NULL, client_handler, (void*)new_sock) < 0) {
+        if (pthread_create(&thread_id, NULL, client_handler, (void*) new_sock) < 0) {
             perror("Could not create thread");
             free(new_sock);
-            continue;
         }
     }
 
-    close(server_sock);
     return 0;
 }

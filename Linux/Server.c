@@ -216,7 +216,6 @@ void *client_handler(void *socket_desc) {
     // File path entry loop
     if (index != -1) {
         while (1) {
-            log_entry(logFile, userID, "Awaiting file path from client...\n");
             read_size = recv(sock, filePath, BUFFER_SIZE, 0);
             if (read_size <= 0) {
                 log_entry(logFile, userID, "Failed to receive filePath from client\n");
@@ -259,7 +258,7 @@ void *client_handler(void *socket_desc) {
                 log_entry(logFile, userID, logMessage); 
             }
         } else {
-            log_entry(logFile, "Failed to receive content from client\n");
+            log_entry(logFile,userID, "Failed to receive content from client\n");
         }
     }
 

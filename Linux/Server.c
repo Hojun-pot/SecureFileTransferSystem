@@ -68,7 +68,7 @@ int validate_user_group(const char *userID) {
 }
 
 int create_and_write_file(const char* file_path, const char* content) {
-    int file_fd = open(file_path, O_WRONLY | O_CREAT | O_TRUNC, 0666);
+    int file_fd = open(file_path, O_WRONLY | O_CREAT | O_APPEND, 0660);
     if (file_fd < 0) {
         perror("Failed to open or create file");
         return -1;

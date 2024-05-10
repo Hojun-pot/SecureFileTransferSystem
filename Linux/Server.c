@@ -67,13 +67,45 @@ int validate_user_group(const char *userID) {
     return -1;
 }
 
+int lock_file(int fd) {
+    struct flock fl;
+    fl.l_type = F_WRLCK;  // 쓰기 잠금 설정
+    fl.l_whence = SEEK_SET;
+    fl.l_start = 0;
+    fl.l_len = 0;  // 파일 전체에 대한 잠금
+
+    if (fcntl(fd, F_SETLK, &fl) == -1) {
+        perror("Locking file failed");
+        return -1;
+    }
+    return 0;
+}
+
+int unlock_file(int fd) {
+    struct flock fl;
+    fl.l_type = F_UNLCK;  // 잠금 해제
+    fl.l_whence = SEEK_SET;
+    fl.l_start = 0;
+    fl.l_len = 0;
+
+    if (fcntl(fd, F_SETLK, &fl) == -1) {
+        perror("Unlocking file failed");
+        return -1;
+    }
+    return 0;
+}
+
 int create_and_write_file(const char* file_path, const char* content, const char* user_id) {
     int file_fd = open(file_path, O_WRONLY | O_CREAT | O_APPEND, 0660);
     if (file_fd < 0) {
         perror("Failed to open or create file");
         return -1;
     }
-
+    if (lock_file(fd) != 0) {
+    printf("File is currently in use by another process.\n");
+    close(fd);
+    return -1;
+    }
     // 파일이 비어 있지 않은 경우, 공백을 추가합니다.
     off_t current_size = lseek(file_fd, 0, SEEK_END);
     if (current_size > 0) {
@@ -102,8 +134,9 @@ int create_and_write_file(const char* file_path, const char* content, const char
         close(file_fd);
         return -1;
     }
-
+    
     free(full_content);
+    unlock_file(fd);
     close(file_fd);  // 파일 디스크립터를 닫음
     return 0;  // 성공 시 0 반환
 }

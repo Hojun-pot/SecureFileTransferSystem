@@ -114,77 +114,61 @@ bool check_extension(const char *file_path) {
 }
 
 int create_and_write_file(const char* file_path, const char* content, const char* user_id) {
-    // Open the file with the appropriate flags and permissions
     int file_fd = open(file_path, O_WRONLY | O_CREAT | O_APPEND, 0660);
     if (file_fd < 0) {
-        switch(errno) {
-            case EACCES:
-                perror("Failed to open or create file: Access denied");
-                break;
-            case ENOENT:
-                perror("Failed to open or create file: Directory does not exist");
-                break;
-            default:
-                perror("Failed to open or create file for an unknown reason");
-        }
-        return -1;
+        perror("Failed to open or create file");
+        return errno;  // Return the actual errno to the caller for specific handling
     }
 
-    // Attempt to lock the file immediately after opening
     if (lock_file(file_fd) == -1) {
-        close(file_fd); // Make sure to close the file descriptor if locking fails
-        return -1;
+        perror("Failed to lock file");
+        close(file_fd);
+        return errno;
     }
 
-    // Check if file is empty and if not, add a newline
-    off_t current_size = lseek(file_fd, 0, SEEK_END);
-    if (current_size > 0) {
+    // Check if a newline is needed before appending new content
+    if (lseek(file_fd, 0, SEEK_END) > 0) {
         if (write(file_fd, "\n", 1) < 0) {
-            perror("Failed to write space to file");
+            perror("Failed to write newline to file");
             unlock_file(file_fd);
             close(file_fd);
-            return -1;
+            return errno;
         }
     }
 
-    // Prepare content to be written including user ID
-    int content_length = strlen(content) + strlen(user_id) + 3; // content + user ID + parentheses and null terminator
+    int content_length = snprintf(NULL, 0, "%s (%s)", content, user_id) + 1;
     char* full_content = malloc(content_length);
-    if (full_content == NULL) {
-        perror("Failed to allocate memory for full content");
+    if (!full_content) {
+        perror("Failed to allocate memory for content");
         unlock_file(file_fd);
         close(file_fd);
-        return -1;
+        return errno;
     }
 
-    sprintf(full_content, "%s (%s)", content, user_id);
-
-    // Write the prepared content to the file
+    snprintf(full_content, content_length, "%s (%s)", content, user_id);
     if (write(file_fd, full_content, strlen(full_content)) < 0) {
-        perror("Failed to write to file");
+        perror("Failed to write content to file");
         free(full_content);
         unlock_file(file_fd);
         close(file_fd);
-        return -1;
+        return errno;
     }
 
     free(full_content);
     unlock_file(file_fd);
-    close(file_fd); // Close the file descriptor after unlocking
-    return 0; // Return success
+    close(file_fd);
+    return 0;
 }
+
 
 void *client_handler(void *socket_desc) {
     int sock = *(int*)socket_desc;
     char userID[BUFFER_SIZE], filePath[BUFFER_SIZE], content[BUFFER_SIZE * 4];
     int read_size, index;
 
-    // Lock and open the log file
     pthread_mutex_lock(&lock);
-    char logPath[512] = "/home/server_logs/server_log.txt";
-    FILE *logFile = fopen(logPath, "a");
+    FILE *logFile = fopen("/home/server_logs/server_log.txt", "a");
     pthread_mutex_unlock(&lock);
-
     if (!logFile) {
         perror("Failed to open log file");
         close(sock);
@@ -192,72 +176,51 @@ void *client_handler(void *socket_desc) {
         return NULL;
     }
 
-    // User ID validation loop
-    while (1) {
-        log_entry(logFile, userID, "Awaiting file path from client...");
-        read_size = recv(sock, userID, BUFFER_SIZE, 0);
-        if (read_size <= 0) {
-           log_entry(logFile, userID, "Connection lost or client disconnected\n");
-            break;
-        }
+    // Handle user ID
+    while ((read_size = recv(sock, userID, BUFFER_SIZE, 0)) > 0) {
         userID[read_size] = '\0';
         trim_whitespace(userID);
-        log_entry(logFile, "Received user ID: %s\n", userID);
-        index = validate_user_group(userID);
-        if (index != -1) {
-            log_entry(logFile, userID, "Valid user ID received\n");
+        if ((index = validate_user_group(userID)) != -1) {
             send(sock, "Valid user ID.", 14, 0);
             break;
         } else {
-            send(sock, "Invalid user ID. Check the ID again.", 30, 0);
+            send(sock, "Invalid user ID. Check the ID again.", 36, 0);
         }
     }
 
-    // File path entry loop
+    // Handle file path
     if (index != -1) {
-        while (1) {
-            read_size = recv(sock, filePath, BUFFER_SIZE, 0);
-            if (read_size <= 0) {
-                log_entry(logFile, userID, "Failed to receive filePath from client\n");
-                break;
-            }
+        while ((read_size = recv(sock, filePath, BUFFER_SIZE, 0)) > 0) {
             filePath[read_size] = '\0';
             trim_whitespace(filePath);
-            char logMessage[512]; // Ensure this buffer is large enough for your needs
-            // After receiving filePath from client
-            snprintf(logMessage, sizeof(logMessage), "Received file path: %s", filePath);
-            log_entry(logFile, userID, logMessage);
             if (check_extension(filePath)) {
-                send(sock, "File path accepted.\n", 20, 0);
-                log_entry(logFile, userID, "Valid file extension received.\n");
+                send(sock, "File path accepted.", 20, 0);
                 break;
             } else {
-                send(sock, "Invalid file extension. Please enter a .txt file path.\n", 60, 0);
-                log_entry(logFile, userID, "Invalid file extension received.\n");
+                send(sock, "Invalid file extension. Please enter a .txt file path.", 55, 0);
             }
         }
     }
 
-    // File content receiving and writing
-    if (index != -1 && strlen(filePath) > 0) {
-        read_size = recv(sock, content, BUFFER_SIZE * 4, 0);
-        if (read_size > 0) {
-            content[read_size] = '\0';
-            char fullPath[256];
-            sprintf(fullPath, "%s/%s", access_control[index].directory, filePath);
-            char logMessage[512]; // Ensure this buffer is large enough for your needs
-            // After receiving filePath from client
-            if (create_and_write_file(fullPath, content, userID) == 0) {
-                send(sock, "File created and content written successfully.\n", 47, 0);
-                snprintf(logMessage, sizeof(logMessage), "File written successfully. %s", filePath);
-                log_entry(logFile, userID, logMessage);
-            } else {
-                send(sock, "Failed to open file.\n", 21, 0);
-                snprintf(logMessage, sizeof(logMessage), "Failed to open file. %s", filePath);
-                log_entry(logFile, userID, logMessage); 
-            }
-        } else {
-            log_entry(logFile,userID, "Failed to receive content from client\n");
+    // Handle file content and writing
+    if (index != -1 && strlen(filePath) > 0 && (read_size = recv(sock, content, BUFFER_SIZE * 4, 0)) > 0) {
+        content[read_size] = '\0';
+        char fullPath[256];
+        snprintf(fullPath, sizeof(fullPath), "%s/%s", access_control[index].directory, filePath);
+        int result = create_and_write_file(fullPath, content, userID);
+        switch (result) {
+            case 0:
+                send(sock, "File created and content written successfully.", 47, 0);
+                break;
+            case EACCES:
+                send(sock, "Permission denied to write to file.", 36, 0);
+                break;
+            case ENOENT:
+                send(sock, "Directory does not exist.", 25, 0);
+                break;
+            default:
+                send(sock, "Failed to write to file due to an unknown error.", 49, 0);
+                break;
         }
     }
 
@@ -266,7 +229,6 @@ void *client_handler(void *socket_desc) {
     free(socket_desc);
     return NULL;
 }
-
 
 int main() {
     int server_sock, client_sock, c;

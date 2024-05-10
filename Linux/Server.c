@@ -73,14 +73,17 @@ int create_and_write_file(const char* file_path, const char* content, const char
         perror("Failed to open or create file");
         return -1;
     }
+
+    // 파일이 비어 있지 않은 경우, 공백을 추가합니다.
     off_t current_size = lseek(file_fd, 0, SEEK_END);
-    if (current_size > 0) {  // 파일 크기가 0보다 크다면, 이미 내용이 있다는 의미입니다.
-        if (write(file_fd, "\n", 1) < 0) {  // 공백 문자를 파일에 쓴다.
+    if (current_size > 0) {
+        if (write(file_fd, " ", 1) < 0) {
             perror("Failed to write space to file");
             close(file_fd);
             return -1;
         }
     }
+
     // 사용자 아이디를 포함한 새로운 내용을 준비합니다.
     int content_length = strlen(content) + strlen(user_id) + 3; // 내용 + 사용자 아이디 + 괄호와 널 문자
     char* full_content = malloc(content_length);
@@ -89,8 +92,10 @@ int create_and_write_file(const char* file_path, const char* content, const char
         close(file_fd);
         return -1;
     }
+
     sprintf(full_content, "%s (%s)", content, user_id);
 
+    // 새로운 내용을 파일에 씁니다.
     if (write(file_fd, full_content, strlen(full_content)) < 0) {
         perror("Failed to write to file");
         free(full_content);

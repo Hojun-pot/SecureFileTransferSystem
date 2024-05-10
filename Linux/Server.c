@@ -101,9 +101,9 @@ int create_and_write_file(const char* file_path, const char* content, const char
         perror("Failed to open or create file");
         return -1;
     }
-    if (lock_file(fd) != 0) {
+    if (lock_file(file_fd) != 0) {
     printf("File is currently in use by another process.\n");
-    close(fd);
+    close(file_fd);
     return -1;
     }
     // 파일이 비어 있지 않은 경우, 공백을 추가합니다.
@@ -136,7 +136,7 @@ int create_and_write_file(const char* file_path, const char* content, const char
     }
     
     free(full_content);
-    unlock_file(fd);
+    unlock_file(file_fd);
     close(file_fd);  // 파일 디스크립터를 닫음
     return 0;  // 성공 시 0 반환
 }

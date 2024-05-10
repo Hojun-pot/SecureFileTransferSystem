@@ -105,15 +105,20 @@ bool check_extension(const char *file_path) {
 }
 
 int create_and_write_file(const char* file_path, const char* content, const char* user_id) {
+    // Existing file creation and writing
     int file_fd = open(file_path, O_WRONLY | O_CREAT | O_APPEND, 0660);
     if (file_fd < 0) {
-        perror("Failed to open or create file");
+        switch(errno) {
+            case EACCES:
+                perror("Failed to open or create file: Access denied");
+                break;
+            case ENOENT:
+                perror("Failed to open or create file: Directory does not exist");
+                break;
+            default:
+                perror("Failed to open or create file for an unknown reason");
+        }
         return -1;
-    }
-    if (lock_file(file_fd) != 0) {
-    printf("File is currently in use by another process.\n");
-    close(file_fd);
-    return -1;
     }
     // 파일이 비어 있지 않은 경우, 공백을 추가합니다.
     off_t current_size = lseek(file_fd, 0, SEEK_END);

@@ -43,10 +43,17 @@ int main() {
     server.sin_family = AF_INET;
     server.sin_port = htons(PORT);
 
+    // Existing error handling
     if (connect(sock, (struct sockaddr *)&server, sizeof(server)) < 0) {
-        perror("Connection failed");
-        return 1;
+    if (errno == ECONNREFUSED) {
+        fprintf(stderr, "Connection failed: Server is not accepting requests. Check if the server is running.\n");
+    } else if (errno == ETIMEDOUT) {
+        fprintf(stderr, "Connection failed: The connection attempt timed out. Check your network connectivity.\n");
+    } else {
+        perror("Connection failed for an unknown reason");
     }
+    return 1;
+}
 
     printf("Connected to server.\n");
 

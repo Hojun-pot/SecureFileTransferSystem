@@ -67,7 +67,7 @@ int validate_user_group(const char *userID) {
     return -1;
 }
 
-int create_and_write_file(const char* file_path, const char* content) {
+int create_and_write_file(const char* file_path, const char* content, const char* user_id) {
     int file_fd = open(file_path, O_WRONLY | O_CREAT | O_APPEND, 0660);
     if (file_fd < 0) {
         perror("Failed to open or create file");
@@ -81,13 +81,24 @@ int create_and_write_file(const char* file_path, const char* content) {
             return -1;
         }
     }
-    
-    if (write(file_fd, content, strlen(content)) < 0) {
+    // 사용자 아이디를 포함한 새로운 내용을 준비합니다.
+    int content_length = strlen(content) + strlen(user_id) + 3; // 내용 + 사용자 아이디 + 괄호와 널 문자
+    char* full_content = malloc(content_length);
+    if (full_content == NULL) {
+        perror("Failed to allocate memory for full content");
+        close(file_fd);
+        return -1;
+    }
+    sprintf(full_content, "%s (%s)", content, user_id);
+
+    if (write(file_fd, full_content, strlen(full_content)) < 0) {
         perror("Failed to write to file");
+        free(full_content);
         close(file_fd);
         return -1;
     }
 
+    free(full_content);
     close(file_fd);  // 파일 디스크립터를 닫음
     return 0;  // 성공 시 0 반환
 }

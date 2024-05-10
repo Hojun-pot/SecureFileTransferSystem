@@ -240,7 +240,6 @@ void *client_handler(void *socket_desc) {
 
     // File content receiving and writing
     if (index != -1 && strlen(filePath) > 0) {
-        log_entry(logFile, "Awaiting content from client...\n");
         read_size = recv(sock, content, BUFFER_SIZE * 4, 0);
         if (read_size > 0) {
             content[read_size] = '\0';

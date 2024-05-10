@@ -151,14 +151,6 @@ int create_and_write_file(const char* file_path, const char* content, const char
     return 0;  // 성공 시 0 반환
 }
 
-bool is_txt_extension(const char *file_path) {
-    const char *extension = strrchr(file_path, '.');
-    if (extension != NULL && strcmp(extension, ".txt") == 0) {
-        return true;
-    }
-    return false;
-}
-
 void *client_handler(void *socket_desc) {
     int sock = *(int*)socket_desc;
     char userID[BUFFER_SIZE], filePath[BUFFER_SIZE], content[BUFFER_SIZE * 4];
@@ -211,7 +203,7 @@ void *client_handler(void *socket_desc) {
             filePath[read_size] = '\0';
 
             // Check if the file extension is .txt
-            if (!is_txt_extension(filePath)) {
+            if (!check_extension(filePath)) {
                 send(sock, "Invalid file extension. Please enter a .txt file path.\n", 60, 0);
                 continue; // Prompt the client to re-enter the file path
             }

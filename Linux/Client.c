@@ -77,7 +77,7 @@ int main() {
 
     // File path entry loop
     while (1) {
-        printf("Enter .txt file path:\n> ");
+        printf("Enter file path (.txt):\n> ");
         fgets(message, sizeof(message), stdin);
         trim(message);
         send(sock, message, strlen(message), 0);
